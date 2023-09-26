@@ -1,8 +1,11 @@
 package com.audsat.carinsureapi.domain.service;
 
-import com.audsat.carinsureapi.api.dto.InsuranceRequest;
+import com.audsat.carinsureapi.api.assembler.InsuranceAssembler;
+import com.audsat.carinsureapi.api.dto.*;
 import com.audsat.carinsureapi.domain.model.entity.Insurances;
 import com.audsat.carinsureapi.domain.repository.InsuranceRepository;
+import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -10,41 +13,58 @@ import org.springframework.stereotype.Service;
 @Service
 public class InsuranceService {
 
+    private final InsuranceAssembler insuranceAssembler;
     private final InsuranceRepository insuranceRepository;
 
-    public Insurances createInsurance(InsuranceRequest request) {
+    @Transactional
+    public InsuranceCreateOutput createInsurance(@Valid InsuranceCreateInput json) {
 
-        // criar um novo seguro com base nos dados em request
-        Insurances insurance = new Insurances();
+        Insurances entity = insuranceAssembler.toEntity(json);
 
-        // add logica
+        insuranceRepository.save(entity);
 
-        return insuranceRepository.save(insurance);
+        return insuranceAssembler.toCreateOutput(entity);
     }
 
-    public Insurances getInsuranceById(Long insuranceId) {
+    public InsuranceSearchOutput getInsuranceById(Long insuranceId) {
 
-        // buscar um seguro pelo ID
-        return insuranceRepository.findById(insuranceId).orElse(null);
+        if (insuranceId == null || insuranceId <= 0)
+            return null; // ALterar para um throw
+
+        Insurances insurance = insuranceRepository.findById(insuranceId).orElse(null);
+
+        if (insurance != null) {
+
+            InsuranceSearchOutput output = insuranceAssembler.toSearchOutput(insurance);
+
+            output.setCalculatedValue(null);
+
+            return output;
+        }
+
+        return null; // Tratar melhor posteriormente
     }
 
-    public Insurances updateInsurance(Long insuranceId, InsuranceRequest request) {
+    public InsuranceUpdateOutput updateInsurance(Long insuranceId, @Valid InsuranceUpdateInput json) {
 
-        // atualizar um seguro com base no ID e nos dados em request
         Insurances existingInsurance = insuranceRepository.findById(insuranceId).orElse(null);
 
         if (existingInsurance != null) {
-            return insuranceRepository.save(existingInsurance);
+
+            existingInsurance = insuranceAssembler.toEntityForPartialUpdate(existingInsurance, json);
+
+            insuranceRepository.save(existingInsurance);
+
+            return insuranceAssembler.toUpdateOutput(existingInsurance);
         }
 
-        else {
-            return null;
-        }
+        return null; // Tratar melhor posteriormente
     }
 
-    public void deleteInsurance(Long insuranceId) {
+    public String deleteInsurance(Long insuranceId) {
 
-        // remover um seguro com base no ID
         insuranceRepository.deleteById(insuranceId);
+
+        return "DELETE OK!";
     }
 }
